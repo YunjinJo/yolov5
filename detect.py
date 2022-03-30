@@ -25,10 +25,13 @@ Usage - formats:
 """
 
 import argparse
+import math
 import os
 import sys
 from pathlib import Path
 
+import cv2
+import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 
@@ -40,10 +43,17 @@ ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 from models.common import DetectMultiBackend
 from utils.datasets import IMG_FORMATS, VID_FORMATS, LoadImages, LoadStreams
-from utils.general import (LOGGER, check_file, check_img_size, check_imshow, check_requirements, colorstr, cv2,
+from utils.general import (LOGGER, check_file, check_img_size, check_imshow, check_requirements, colorstr,
                            increment_path, non_max_suppression, print_args, scale_coords, strip_optimizer, xyxy2xywh)
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, time_sync
+
+
+def checkXYcord(min, max, object):
+    if min <= object < max:
+        return True
+    else:
+        return False
 
 
 @torch.no_grad()
@@ -168,6 +178,94 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                         annotator.box_label(xyxy, label, color=colors(c, True))
                         if save_crop:
                             save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
+            '''
+            # 이 코드는 상관없음
+            # 차량 카운팅
+            class_name_count = 'cars' # 어떤 클래스를 카운팅 할건지
+            l = s[1:s.find(class_name_count)].split()[-1]
+            if class_name_count in s:
+                print(l, class_name_count) # 출력할 글자 (차량 대수, 클래스 이름)
+                cv2.rectangle(im0, (0,0), (1100,250), (0,0,0), -1) # 글자 배경 (삭제해도 무방)
+                cv2.putText(im0, l + class_name_count, (0, 200), cv2.FONT_HERSHEY_SIMPLEX, 8, (255,255,255), 25, cv2.LINE_AA) # 글자 크기, 폰트, 색상
+            '''
+            '''
+            # 해상도 비율 조정
+            original_h = 3000
+            original_w = 4000
+
+            changed_h = 1080
+            changed_w = 1920
+
+            ratio_h = round(original_h/changed_h)
+            ratio_w = round(original_w/changed_w)
+            '''
+            # 각 차선별로 구역 지정 동영상의 경우 해상도 1920x1080
+            line1xmin = 892
+            line1ymin = 493
+            line1xmax = 1009
+            line1ymax = 1073
+
+            line2xmin = 1001
+            line2ymin = 483
+            line2xmax = 1257
+            line2ymax = 1077
+
+            line3xmin = 1112
+            line3ymin = 487
+            line3xmax = 1497
+            line3ymax = 1075
+
+            # 차선별로 네모 그리기
+            #cv2.rectangle(im0, (line1xmin, line1ymin), (line1xmax, line1ymax), (255, 0, 0), 3)
+            cv2.rectangle(im0, (line2xmin, line2ymin), (line2xmax, line2ymax), (0, 255, 0), 3)
+            cv2.rectangle(im0, (line3xmin, line3ymin), (line3xmax, line3ymax), (0, 0, 255), 3)
+
+            line1poly = np.array([[892, 493],[987, 498],[1009, 1073],[792, 1075]])
+            line1poly = line1poly.reshape(-1, 1, 2)
+            cv2.polylines(im0, [line1poly], True, (255,0,0))
+
+            #print('\n',(pred[0][3][5]), len(pred[0]))  # 테스트용
+
+            # 각 라인별 몇 대의 차량이 있는지 세기 위한 변수
+            line1 = 0
+            line2 = 0
+            line3 = 0
+
+
+
+
+            # 라인별 차량 카운트
+            for list_num in range(0, len(pred[0]) - 1):
+                if pred[0][list_num][5] == 2. or pred[0][list_num][5] == 7. or pred[0][list_num][5] == 3. : # 2. -> 일반 차량, 7. -> 트럭, 3. -> 오토바이
+                    xmin = pred[0][list_num][0] # 탐지된 차량 박스의 xmin 좌표
+                    #print('\n',xmin)
+                    ymin = pred[0][list_num][1] # 탐지된 차량 박스의 ymin 좌표
+                    #print('\n',ymin)
+                    xmax = pred[0][list_num][2]
+                    ymax = pred[0][list_num][3]
+                    xcord = (xmin + xmax) / 2   # 박스의 중앙값 계산
+                    ycord = (ymin + ymax) / 2
+                    cv2.circle(im0, (math.floor(xcord), math.floor(ycord)), 10, (0, 0, 255), -1) # 박스 중간에 원을 그림
+                    # 라인별 차량 수 카운트
+                    if checkXYcord(line1xmin, line1xmax, xcord) and (line1ymin <= ycord < line1ymax):
+                        line1 += 1
+                    elif (line2xmin <= xcord < line2xmax) and (line2ymin <= ycord < line2ymax):
+                        line2 += 1
+                    elif (line3xmin <= xcord < line3xmax) and (line3ymin <= ycord < line3ymax):
+                        line3 += 1
+
+                # 라인별 차량 수 출력
+            cv2.putText(im0, 'Line1: ' + str(line1), (line1xmin, line1ymin - 20), cv2.FONT_HERSHEY_SIMPLEX,
+                                    1,
+                                    (255, 0, 0), 3)
+            cv2.putText(im0, 'Line2: ' + str(line2), (line2xmin, line2ymin - 20), cv2.FONT_HERSHEY_SIMPLEX,
+                                    1,
+                                    (0, 255, 0), 3)
+            cv2.putText(im0, 'Line3: ' + str(line3), (line3xmin, line3ymin - 20), cv2.FONT_HERSHEY_SIMPLEX,
+                                    1,
+                                    (0, 0, 255), 3)
+
+
 
             # Stream results
             im0 = annotator.result()
