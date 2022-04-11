@@ -258,7 +258,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                         if x_upl != 0 and y_upl != 0:
                             print("x_upl y_upl print")
                             print(x_upl, y_upl)
-                            cor.insert(0, [x_upl, y_upl])
+                            cor.insert(0, [x_upl, y_upl]) # cor.append([x_upl, y_upl]) 로 수정하는 거는 어떨까?
                             x_upl = 0
                             y_upl = 0
                             stack = 1
