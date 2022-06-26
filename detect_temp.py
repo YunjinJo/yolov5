@@ -55,15 +55,19 @@ def checkXYcord(min, max, object):
     else:
         return False
 
-# Function drawing traffic lanes
-def drawing_box(image_data, traffic_lane, line_col):
-    point_LUp = traffic_lane[0]
-    point_RUp = traffic_lane[1]
-    point_LDo = traffic_lane[2]
-    point_RDo = traffic_lane[3]
-    line1poly = np.array([point_LUp, point_RUp, point_RDo, point_LDo])
-    line1poly = line1poly.reshape(-1, 1, 2)
-    return cv2.polylines(image_data, [line1poly], True, line_col)
+ix,iy = -1,-1
+cor = []
+stack = 0
+x_upl = 0
+y_upl = 0
+x_upr = 0
+y_upr = 0
+x_dol = 0
+y_dol = 0
+x_dor = 0
+y_dor = 0
+dots = True
+num = 0
 
 @torch.no_grad()
 def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
@@ -92,9 +96,6 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         hide_conf=False,  # hide confidences
         half=False,  # use FP16 half-precision inference
         dnn=False,  # use OpenCV DNN for ONNX inference
-        draw_boxes=[[[50, 50], [100, 50], [50, 100], [100, 100]], \
-                    [[50, 50], [100, 50], [50, 100], [100, 100]], \
-                    [[50, 50], [100, 50], [50, 100], [100, 100]]], # use to draw traffic lanes
         ):
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -212,7 +213,6 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             ratio_w = round(original_w/changed_w)
             '''
 
-            '''
             # 각 차선별로 구역 지정 동영상의 경우 해상도 1920x1080
             line1xmin = 892
             line1ymin = 493
@@ -228,90 +228,16 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             line3ymin = 487
             line3xmax = 1497
             line3ymax = 1075
-            '''
 
-            str_b = draw_boxes # 터미널을 통해 입력한 좌표 배열이 문자열로 입력됨
-            traffic_lanes = 3
-            points = 4
-            num_coor = 2
 
-            temp_str_num = [] # x 또는 y 좌표
-            temp_list_coor = [] # (x, y) 순서쌍
-            result_coor = np.zeros((traffic_lanes, points, num_coor), dtype=int) # 최종 좌표 배열
-            row_count = 0 # 행
-            col_count = 0 # 열
-            # 문자열로 입력된 좌표 배열을 좌표 행렬로 변환; 차선을 그리기 위해 필요한 좌표 행렬
-            for n in range(len(str_b)):
-                # 분리된 x, y 좌표 문자를 int로 형 변환; '8', '0', '2' -> 8, 0, 2 과정
-                if str_b[n] != '[' and str_b[n] != ']' and str_b[n] != ',':
-                    if type(int(str_b[n])) == int:
-                        temp_str_num.append(int(str_b[n]))
-                # x, y 좌표 숫자를 x, y 좌표 값으로 변환
-                elif str_b[n] == ',':
-                    if len(temp_str_num) == 2:
-                        temp_list_coor.append(temp_str_num[0] * 10 + \
-                                              temp_str_num[1] * 1)
-                    elif len(temp_str_num) == 3:
-                        temp_list_coor.append(temp_str_num[0] * 100 + \
-                                              temp_str_num[1] * 10 + \
-                                              temp_str_num[2] * 1)
-                    elif len(temp_str_num) == 4:
-                        temp_list_coor.append(temp_str_num[0] * 1000 + \
-                                              temp_str_num[1] * 100 + \
-                                              temp_str_num[2] * 10 + \
-                                              temp_str_num[3] * 1)
-                    temp_str_num = [] # 숫자 초기화
-                    # x, y 좌표 값을 (x, y) 순서쌍으로 변환
-                    if str_b[n - 1] == ']':
-                        result_coor[row_count][col_count] = temp_list_coor
-                        col_count = col_count + 1 # 열 이동
-                        temp_list_coor = [] # 순서쌍 초기화
-                # 열 초기화 및 행 이동; for문 중첩을 피하기 위함 & 시간 복잡도 최소화
-                elif n > 2 and str_b[n] == '[' and str_b[n - 1] == '[':
-                    col_count = 0
-                    row_count = row_count + 1
-                # 앞선 과정으로 변환되지 않은 마지막 x, y 좌표 값을 (x, y) 순서쌍으로 변환
-                elif str_b[n] == ']' and str_b[n - 1] == ']' and str_b[n - 2] == ']':
-                    if len(temp_str_num) == 2:
-                        temp_list_coor.append(temp_str_num[0] * 10 + \
-                                              temp_str_num[1] * 1)
-                    elif len(temp_str_num) == 3:
-                        temp_list_coor.append(temp_str_num[0] * 100 + \
-                                              temp_str_num[1] * 10 + \
-                                              temp_str_num[2] * 1)
-                    elif len(temp_str_num) == 4:
-                        temp_list_coor.append(temp_str_num[0] * 1000 + \
-                                              temp_str_num[1] * 100 + \
-                                              temp_str_num[2] * 10 + \
-                                              temp_str_num[3] * 1)
-                    # x, y 좌표 값을 (x, y) 순서쌍으로 변환
-                    if str_b[n - 1] == ']':
-                        result_coor[row_count][col_count] = temp_list_coor # 좌표 행렬 초기화
-                        col_count = col_count + 1
-                        temp_list_coor = []
+            # 차선별로 네모 그리기
+            #cv2.rectangle(im0, (line1xmin, line1ymin), (line1xmax, line1ymax), (255, 0, 0), 3)
+            cv2.rectangle(im0, (line2xmin, line2ymin), (line2xmax, line2ymax), (0, 255, 0), 3)
+            cv2.rectangle(im0, (line3xmin, line3ymin), (line3xmax, line3ymax), (0, 0, 255), 3)
 
-            result_coor = result_coor.tolist() # 문자열에서 변환된 좌표 행렬을 numpy에서 배열로 형 변환
-
-            # result_coor[n차선, n = 1, 2, 3][좌상, 우상, 좌하, 우하][x, y]
-            line1xmin = result_coor[0][0][0]
-            line1ymin = result_coor[0][0][1]
-            line1xmax = result_coor[0][1][0]
-            line1ymax = result_coor[0][2][1]
-
-            line2xmin = result_coor[1][0][0]
-            line2ymin = result_coor[1][0][1]
-            line2xmax = result_coor[1][1][0]
-            line2ymax = result_coor[1][2][1]
-
-            line3xmin = result_coor[2][0][0]
-            line3ymin = result_coor[2][0][1]
-            line3xmax = result_coor[2][1][0]
-            line3ymax = result_coor[2][2][1]
-
-            # 차선별로 상자 그리기; 1차선, 2차선, 3차선
-            drawing_box(im0, result_coor[0], (255, 0, 0))
-            drawing_box(im0, result_coor[1], (0, 255, 0))
-            drawing_box(im0, result_coor[2], (0, 0, 255))
+            line1poly = np.array([[892, 493],[987, 498],[1009, 1073],[792, 1075]])
+            line1poly = line1poly.reshape(-1, 1, 2)
+            cv2.polylines(im0, [line1poly], True, (255,0,0))
 
             #print('\n',(pred[0][3][5]), len(pred[0]))  # 테스트용
 
@@ -319,6 +245,77 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             line1 = 0
             line2 = 0
             line3 = 0
+
+            def draw_circle(event, x, y, flags, param):
+                global ix, iy, stack
+
+                if event == cv2.EVENT_LBUTTONDOWN:
+                    ix, iy = x, y
+                elif event == cv2.EVENT_LBUTTONUP:
+                    if stack == 0:
+                        x_upl = np.abs(ix + x) / 2
+                        y_upl = np.abs(iy + y) / 2
+                        if x_upl != 0 and y_upl != 0:
+                            print("x_upl y_upl print")
+                            print(x_upl, y_upl)
+                            cor.insert(0, [x_upl, y_upl]) # cor.append([x_upl, y_upl])
+                            x_upl = 0
+                            y_upl = 0
+                            stack = 1
+                            print(stack)
+                    elif stack == 1:
+                        x_upr = np.abs(ix + x) / 2
+                        y_upr = np.abs(iy + y) / 2
+                        if x_upr != 0 and y_upr != 0:
+                            print("x_upr y_upr print")
+                            print(x_upr, y_upr)
+                            cor.insert(1, [x_upr, y_upr]) # cor.append([x_upr, y_upr])
+                            x_upr = 0
+                            y_upr = 0
+                            stack = 2
+                            print(stack)
+                    elif stack == 2:
+                        x_dor = np.abs(ix + x) / 2
+                        y_dor = np.abs(iy + y) / 2
+                        if x_dor != 0 and y_dor != 0:
+                            print("x_dor y_dor print")
+                            print(x_dor, y_dor)
+                            cor.insert(2, [x_dor, y_dor])
+                            x_dor = 0
+                            y_dor = 0
+                            x = 0
+                            y = 0
+                            stack = 3
+                            print(stack)
+                    elif stack == 3:
+                        x_dol = np.abs(ix + x) / 2
+                        y_dol = np.abs(iy + y) / 2
+                        if x_dol != 0 and y_dol != 0:
+                            print("x_dol y_dol print")
+                            print(x_dol, y_dol)
+                            cor.insert(3, [x_dol, y_dol])
+                            isObjectinLane(cor)
+                            cor.clear()
+                            x_dol = 0
+                            y_dol = 0
+                            stack = 0
+                            print(stack)
+                    else:
+                        print("Error!!!!")
+
+            def isObjectinLane(cor):
+                # cv2.rectangle(img, (line1xmin, line1ymin), (line1xmax, line1ymax), (255, 0, 0), 3)
+                # cv2.rectangle(img, (line2xmin, line2ymin), (line2xmax, line2ymax), (0, 255, 0), 3)
+                # cv2.rectangle(img, (line3xmin, line3ymin), (line3xmax, line3ymax), (0, 0, 255), 3)
+                line1poly = np.array(cor)
+                line1poly = line1poly.reshape(-1, 1, 2)
+                cv2.polylines(img, np.int32([line1poly]), True, (255, 0, 0))
+
+            img = cv2.imread("test_data/test1.jpg")
+            cv2.namedWindow('image')
+
+
+
 
             # 라인별 차량 카운트
             for list_num in range(0, len(pred[0]) - 1):
@@ -350,6 +347,8 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             cv2.putText(im0, 'Line3: ' + str(line3), (line3xmin, line3ymin - 20), cv2.FONT_HERSHEY_SIMPLEX,
                                     1,
                                     (0, 0, 255), 3)
+
+
 
             # Stream results
             im0 = annotator.result()
@@ -388,13 +387,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     if update:
         strip_optimizer(weights)  # update model (to fix SourceChangeWarning)
 
-def sum_test(a):
-    sum_r = sum(a)
-    return sum_r
 
-list_default = [[[50, 50], [100, 50], [50, 100], [100, 100]], \
-                [[50, 50], [100, 50], [50, 100], [100, 100]], \
-                [[50, 50], [100, 50], [50, 100], [100, 100]]]
 def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', nargs='+', type=str, default=ROOT / 'yolov5s.pt', help='model path(s)')
@@ -423,17 +416,16 @@ def parse_opt():
     parser.add_argument('--hide-conf', default=False, action='store_true', help='hide confidences')
     parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
-
-    parser.add_argument('--draw-boxes', type=list, default=list_default, help='draw traffic lanes for counting cars')
-
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
     print_args(FILE.stem, opt)
     return opt
 
+
 def main(opt):
     check_requirements(exclude=('tensorboard', 'thop'))
     run(**vars(opt))
+
 
 if __name__ == "__main__":
     opt = parse_opt()
